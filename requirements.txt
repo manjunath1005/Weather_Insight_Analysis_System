@@ -1,0 +1,8 @@
+python-dotenv
+supabase
+streamlit
+pandas
+numpy
+matplotlib
+mplcursors
+requests
