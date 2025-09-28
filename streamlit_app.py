@@ -87,8 +87,36 @@ elif choice == menu[2]:
             if not records:
                 st.warning("No records found")
             else:
-                analyze_and_plot_weather(records, locality["locality_name"])
+                import pandas as pd
+
+                df = pd.DataFrame(records)
+
+                # --- Fix measurement_date ---
+                df["measurement_date"] = pd.to_datetime(df["measurement_date"], errors="coerce")
+
+                # --- Keep only the latest record per date ---
+                df = df.sort_values("measurement_date").drop_duplicates(
+                    subset="measurement_date", keep="last"
+                )
+
+                # --- Ensure continuous 7-day range ---
+                start_date = df["measurement_date"].min()
+                full_range = pd.date_range(start=start_date, periods=7, freq="D")
+                
+                # Merge to fill missing dates
+                full_df = pd.DataFrame({"measurement_date": full_range})
+                df = full_df.merge(df, on="measurement_date", how="left")
+
+                # Forward/backward fill for missing data
+                for col in ["temperature", "humidity", "description", "wind_speed", "locality_id", "weather_id"]:
+                    if col in df.columns:
+                        df[col] = df[col].ffill().bfill()
+
+                # --- Call analysis & plotting function ---
+                analyze_and_plot_weather(df.to_dict(orient="records"), locality["locality_name"])
+
                 st.success("Analysis complete! Check the plots above.")
+
 
 # --- Export CSV ---
 elif choice == menu[3]:
@@ -109,17 +137,35 @@ elif choice == menu[3]:
                 df["measurement_date"] = pd.to_datetime(df["measurement_date"], errors="coerce")
                 df["measurement_date"] = df["measurement_date"].dt.strftime("%Y-%m-%d")
 
-                avg_row = df.mean(numeric_only=True)
+                # Columns for summary (exclude IDs and description)
+                numeric_cols = ["temperature", "humidity", "wind_speed"]
+
+                avg_row = df[numeric_cols].mean()
                 avg_row["measurement_date"] = "Average"
-                min_row = df.min(numeric_only=True)
+
+                min_row = df[numeric_cols].min()
                 min_row["measurement_date"] = "Minimum"
-                max_row = df.max(numeric_only=True)
+
+                max_row = df[numeric_cols].max()
                 max_row["measurement_date"] = "Maximum"
+
+                # Add empty description + IDs for clarity
                 for row in [avg_row, min_row, max_row]:
                     row["description"] = ""
+                    row["weather_id"] = ""
+                    row["locality_id"] = ""
+
                 df = pd.concat([df, pd.DataFrame([avg_row, min_row, max_row])], ignore_index=True)
 
+                # Prepare for download
                 filename = f"{locality['locality_name']}_history.csv"
-                df.to_csv(filename, index=False)
-                st.success(f"Exported {len(records)} records + summary → {filename}")
-                st.download_button("Download CSV", df.to_csv(index=False).encode('utf-8'), filename=filename, mime="text/csv")
+                csv_data = df.to_csv(index=False).encode("utf-8")
+
+                st.download_button(
+                    label="Download CSV",
+                    data=csv_data,
+                    file_name=filename,
+                    mime="text/csv"
+                )
+                st.success(f"✅ Exported {len(records)} records + summary")
+

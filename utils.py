@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt
-import mplcursors
 import numpy as np
+import streamlit as st
 
 def analyze_and_plot_weather(records, locality_name):
     if not records:
-        print("❌ No records found for analysis.")
+        st.warning("❌ No records found for analysis.")
         return
 
+    # --- Extract data ---
     temps = [r["temperature"] for r in records]
     hums = [r["humidity"] for r in records]
     winds = [float(r["wind_speed"]) for r in records]
@@ -32,24 +33,34 @@ def analyze_and_plot_weather(records, locality_name):
     wind_cat = "Calm" if avg_wind < 10 else "Moderate" if avg_wind <= 20 else "Windy"
     rain_days = sum(1 for d in descs if "rain" in d.lower())
 
-    # --- Print Analysis ---
-    print(f"\nWeather Analysis (last {len(records)} records):")
-    print(f"🌡️ Temperature → Avg: {avg_temp:.2f}°C | Min: {min_temp}°C | Max: {max_temp}°C | Trend: {trend}")
-    print(f"💧 Humidity    → Avg: {avg_hum:.2f}% (Min: {min_hum}%, Max: {max_hum}%) | Comfort: {comfort}")
-    print(f"💨 Wind Speed  → Avg: {avg_wind:.2f} kmph | Min: {min_wind} kmph | Max: {max_wind} kmph | StdDev: {std_wind:.2f} | Category: {wind_cat}")
-    print(f"☔ Rain Days   → {rain_days}/{len(records)} days had rain")
+    # --- Print Analysis in Streamlit ---
+    st.subheader(f"Weather Analysis (last {len(records)} records) for {locality_name}")
+    st.markdown(f"🌡️ **Temperature** → Avg: {avg_temp:.2f}°C | Min: {min_temp}°C | Max: {max_temp}°C | Trend: {trend}")
+    st.markdown(f"💧 **Humidity** → Avg: {avg_hum:.2f}% | Min: {min_hum}% | Max: {max_hum}% | Comfort: {comfort}")
+    st.markdown(f"💨 **Wind Speed** → Avg: {avg_wind:.2f} kmph | Min: {min_wind} kmph | Max: {max_wind} kmph | StdDev: {std_wind:.2f} | Category: {wind_cat}")
+    st.markdown(f"☔ **Rain Days** → {rain_days}/{len(records)} days had rain")
 
     # --- Plot Graph ---
-    plt.figure(figsize=(10,6))
-    plt.plot(dates, temps, marker='o', label="Temperature (°C)")
-    plt.plot(dates, hums, marker='s', label="Humidity (%)")
-    plt.plot(dates, winds, marker='^', label="Wind Speed (kmph)")
-    plt.xticks(rotation=30)
-    plt.xlabel("Date")
-    plt.ylabel("Values")
-    plt.title(f"Weather Trends for {locality_name}")
-    plt.legend()
-    plt.grid(True)
+    fig, ax = plt.subplots(figsize=(10,6))
+    
+    ax.plot(dates, temps, marker='o', label="Temperature (°C)")
+    ax.plot(dates, hums, marker='s', label="Humidity (%)")
+    ax.plot(dates, winds, marker='^', label="Wind Speed (kmph)")
+
+    # Annotate each point with its value
+    for i, (t, h, w) in enumerate(zip(temps, hums, winds)):
+        ax.text(dates[i], t, f"{t:.1f}", ha='center', va='bottom', fontsize=8)
+        ax.text(dates[i], h, f"{h:.1f}", ha='center', va='bottom', fontsize=8)
+        ax.text(dates[i], w, f"{w:.1f}", ha='center', va='bottom', fontsize=8)
+
+    ax.set_xticks(range(len(dates)))
+    ax.set_xticklabels(dates, rotation=30)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Values")
+    ax.set_title(f"Weather Trends for {locality_name}")
+    ax.legend()
+    ax.grid(True)
     plt.tight_layout()
-    mplcursors.cursor(hover=True)
-    plt.show()
+
+    # Display in Streamlit
+    st.pyplot(fig)
